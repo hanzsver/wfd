@@ -12,14 +12,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="config.js"></script>
-<script type="module">
-import {initializeApp} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import {getAI,getGenerativeModel,GoogleAIBackend} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
-if(window.FB_CONFIG){
-  const model=getGenerativeModel(getAI(initializeApp(window.FB_CONFIG,'ai'),{backend:new GoogleAIBackend()}),
-    {model:"gemini-2.5-flash",generationConfig:{responseMimeType:"application/json",temperature:0.4}});
-  window.WFD_AI=async p=>(await model.generateContent(p)).response.text();
-}
+<script>
+window.WFD_AI=async p=>{const r=await fetch("https://wfd-ai.vot129.workers.dev",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:p})});const j=await r.json();if(!j.text)throw new Error(j.error||"ai");return j.text};
 </script>
 </head>
 <body>
