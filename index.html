@@ -79,6 +79,9 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
 .chip.have{background:var(--have-soft);color:var(--have)}
 .chip.miss{background:var(--miss-soft);color:var(--miss)}
 .chip.left{background:var(--left-soft);color:var(--left)}
+.side{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:7px 14px 7px 10px;border-radius:99px;background:var(--bg);font-size:14px;color:var(--muted)}
+.side .ico{width:22px;height:22px}
+.side b{color:var(--fg);font-weight:700}
 .recipe{display:inline-block;margin-top:16px;font-size:13px;font-weight:700;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
 .actions.one{grid-template-columns:1fr}
 .actions{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:14px}
@@ -240,11 +243,6 @@ nav button[aria-current="page"] .ic{filter:none;opacity:1;transform:translateY(-
         </div>
         <div class="door" id="door"><span class="handle"></span><span class="door-logo">우리 냉장고</span></div>
       </div>
-    </div>
-    <p class="note">간장 · 고추장 · 된장 · 설탕 · 소금 · 식용유 · 참기름 등 기본 양념은 있는 것으로 계산</p>
-    <div class="sec">
-      <div class="sec-t"><span>자주 넣는 것</span></div>
-      <div id="quick"></div>
     </div>
   </section>
 
@@ -695,10 +693,11 @@ function leftMenus(){
   return out;
 }
 /* 면은 보통 곁들임과 같이 먹어서 냉장고 털기에서는 단독 면을 뺌 */
+const SIDE_CAT = new Set(['반찬','안주']);
 const SOLO = new Set(['라면','짜파게티','짜파구리','비빔면','들기름막국수','불닭볶음면']);
 function pools(){
   const own=owned();
-  const cook=MENUS.filter(m=>m.c!=='배달'&&!SOLO.has(m.n)).map(m=>({m,a:analyze(m,own)}));
+  const cook=MENUS.filter(m=>m.c!=='배달'&&!SIDE_CAT.has(m.c)&&!SOLO.has(m.n)).map(m=>({m,a:analyze(m,own)}));
   return {
     ready:cook.filter(x=>x.a.miss.length===0),
     one:cook.filter(x=>x.a.miss.length===1&&x.a.have.length>=1),
@@ -722,6 +721,13 @@ function choose(list){
   const t=tiers.find(a=>a.length);
   return t[Math.floor(Math.random()*t.length)];
 }
+const WITH_SIDE = new Set(['국찌개','고기']);
+function sideFor(m){
+  if(!WITH_SIDE.has(m.c)) return null;
+  const own=owned();
+  const c=MENUS.filter(x=>x.c==='반찬'&&x.n!==m.n&&x.ing.length&&analyze(x,own).miss.length===0);
+  return c.length?c[Math.floor(Math.random()*c.length)]:null;
+}
 function pick(){
   const P=pools();let x=null;
   if(S.mode==='fridge'){
@@ -732,12 +738,12 @@ function pick(){
     if(!x) x=choose(buy);
     if(!x) x=choose(P.ready.concat(P.left));
   }else{
-    const all=MENUS.map(m=>({m,a:analyze(m)})).concat(P.left);
+    const all=MENUS.filter(m=>!SIDE_CAT.has(m.c)).map(m=>({m,a:analyze(m)})).concat(P.left);
     /* 남은 음식이 있으면 가끔 끼워 넣기 */
     if(P.left.length&&Math.random()<.25) x=choose(P.left);
     if(!x) x=choose(all);
   }
-  if(x){S.shown.push(x.m.n);if(S.shown.length>25)S.shown.shift()}
+  if(x){x={...x,side:sideFor(x.m)};S.shown.push(x.m.n);if(S.shown.length>25)S.shown.shift()}
   return x;
 }
 
@@ -769,6 +775,7 @@ function cardHTML(x){
     <div class="menu-name">${esc(m.n)}</div>
     <div class="reason">${reasonOf(x)}</div>
     ${chips?`<div class="chips">${chips}</div>`:''}
+    ${x.side?`<div class="side">곁들이면 ${ico(x.side.e)}<b>${esc(x.side.n)}</b></div>`:''}
     ${link}
   </div>
   <div class="actions one"><button class="btn primary" id="again">다시 뽑기</button></div>
@@ -839,7 +846,7 @@ function drawSum(){
   el.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{S.open=S.open===b.dataset.tog?null:b.dataset.tog;drawSum()});
   el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;S.openG.has(k)?S.openG.delete(k):S.openG.add(k);drawSum()});
   $('#grpmore')&&($('#grpmore').onclick=()=>{S.moreGroups=!S.moreGroups;drawSum()});
-  el.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{const x=rows[+b.dataset.i];S.cur={m:x.m,a:x.a};drawCard();window.scrollTo({top:0,behavior:'smooth'})});
+  el.querySelectorAll('.mrow').forEach(b=>b.onclick=()=>{const x=rows[+b.dataset.i];S.cur={m:x.m,a:x.a,side:sideFor(x.m)};drawCard();window.scrollTo({top:0,behavior:'smooth'})});
 }
 function setMode(m){
   S.mode=m;S.touched=true;
@@ -861,12 +868,6 @@ function drawFridge(){
   $('#cnt-ing').textContent=ing.length?ing.length+'개':'';
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>takeOut(b.dataset.del));
   if(S.pop&&document.querySelector('.it.pop')) S.pop=null;
-  const ownN=new Set(ing.map(i=>norm(i.name))), loN=new Set(lo.map(i=>norm(i.name)));
-  const grp=(t,list,set,cls)=>`<div class="sec-t" style="margin-top:14px"><span>${t}</span></div><div class="quick ${cls}">${list.map(n=>`<button class="${set.has(norm(n))?'on':''}" data-q="${esc(n)}" data-k="${cls?'left':'ing'}">${esc(n)}</button>`).join('')}</div>`;
-  $('#quick').innerHTML=(S.kind==='left'
-    ?grp('남은 음식',QUICK_LEFT,loN,'lo')
-    :Object.entries(QUICK).map(([t,l])=>grp(t,l,ownN,'')).join(''));
-  document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>toggleQuick(b.dataset.q,b.dataset.k,b));
   document.querySelector('nav [data-v="fridge"]').lastChild.textContent=S.items.length?`냉장고 ${S.items.length}`:'냉장고';
 }
 function toggleQuick(name,kind,from){
@@ -935,7 +936,7 @@ function refresh(){
     if(!S.touched&&S.items.length){S.mode='fridge';$('#m-fridge').setAttribute('aria-pressed','true');$('#m-any').setAttribute('aria-pressed','false');roll(false);return}
   }
   /* 지금 카드의 재료 표시만 새로 */
-  if(S.cur&&!S.cur.m.left) S.cur={m:S.cur.m,a:analyze(S.cur.m)};
+  if(S.cur&&!S.cur.m.left) S.cur={...S.cur,a:analyze(S.cur.m)};
   if(S.mode==='fridge'&&!S.cur&&S.items.length) roll(false); else drawCard();
   drawSum();
 }
@@ -965,7 +966,7 @@ function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show'
 function go(v){
   document.querySelectorAll('.view').forEach(s=>s.hidden=s.id!=='v-'+v);
   document.querySelectorAll('nav button').forEach(b=>b.toggleAttribute('aria-current',b.dataset.v===v)||b.dataset.v===v&&b.setAttribute('aria-current','page'));
-  if(v==='pick'&&S.mode==='fridge') {S.cur&&!S.cur.m.left&&(S.cur={m:S.cur.m,a:analyze(S.cur.m)});if(!S.cur&&S.items.length)roll(false);else drawCard();drawSum()}
+  if(v==='pick'&&S.mode==='fridge') {S.cur&&!S.cur.m.left&&(S.cur={...S.cur,a:analyze(S.cur.m)});if(!S.cur&&S.items.length)roll(false);else drawCard();drawSum()}
   if(v==='fridge') openDoor();
   window.scrollTo(0,0);
 }
