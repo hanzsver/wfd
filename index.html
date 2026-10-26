@@ -816,7 +816,7 @@ function roll(animate){
 function drawSum(){
   const el=$('#sum');
   if(S.mode!=='fridge'||!S.items.length){
-    el.innerHTML=`<div class="sum-head" style="cursor:default"><span>모아 둔 메뉴</span><span><span class="n">${MENUS.length}</span>개</span></div>`;return;
+    el.innerHTML='';return;
   }
   const P=pools();
   const key=t=>t.split('/')[0];
